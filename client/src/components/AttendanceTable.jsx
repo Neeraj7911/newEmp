@@ -4,21 +4,86 @@ import { getAttendance } from "../utils/api";
 
 function AttendanceTable() {
   const [attendance, setAttendance] = useState([]);
+  const [filteredAttendance, setFilteredAttendance] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState("all");
+  const [employeeCount, setEmployeeCount] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  console.log("AttendanceTable: Component Rendered");
 
   useEffect(() => {
     const fetchAttendance = async () => {
+      setLoading(true);
       try {
+        console.log("AttendanceTable: Fetching attendance...");
         const response = await getAttendance();
-        setAttendance(Array.isArray(response.data) ? response.data : []);
+        const data = Array.isArray(response.data) ? response.data : [];
+        console.log("AttendanceTable: Raw Data:", data);
+        // Filter out invalid records
+        const validData = data.filter(
+          (record) =>
+            record &&
+            record.employee &&
+            record.employee.id &&
+            record.employee.name
+        );
+        console.log("AttendanceTable: Valid Data:", validData);
+        setAttendance(validData);
+        // Extract unique locations, handle null/undefined
+        const uniqueLocations = [
+          ...new Set(
+            validData
+              .map((record) => record.checkInLocation || "Unknown")
+              .filter(Boolean)
+          ),
+        ];
+        console.log("AttendanceTable: Unique Locations:", uniqueLocations);
+        setLocations(uniqueLocations);
+        // Initial filter (all locations)
+        setFilteredAttendance(validData);
+        // Initial employee count
+        const uniqueEmployees = [
+          ...new Set(validData.map((record) => record.employee.id)),
+        ].length;
+        console.log(
+          "AttendanceTable: Initial Employee Count:",
+          uniqueEmployees
+        );
+        setEmployeeCount(uniqueEmployees);
       } catch (error) {
-        console.error("Fetch Attendance Error:", error);
-        toast.error("Failed to load attendance");
+        console.error("AttendanceTable: Fetch Error:", error);
+        toast.error("Failed to load attendance records");
       }
       setLoading(false);
     };
     fetchAttendance();
   }, []);
+
+  useEffect(() => {
+    console.log("AttendanceTable: Filtering for location:", selectedLocation);
+    // Filter attendance by selected location
+    const filtered =
+      selectedLocation === "all"
+        ? attendance
+        : attendance.filter(
+            (record) =>
+              (record.checkInLocation || "Unknown") === selectedLocation
+          );
+    console.log("AttendanceTable: Filtered Data:", filtered);
+    setFilteredAttendance(filtered);
+    // Calculate unique employees
+    const uniqueEmployees = [
+      ...new Set(filtered.map((record) => record.employee.id)),
+    ].length;
+    console.log("AttendanceTable: Filtered Employee Count:", uniqueEmployees);
+    setEmployeeCount(uniqueEmployees);
+  }, [selectedLocation, attendance]);
+
+  const handleLocationChange = (e) => {
+    console.log("AttendanceTable: Location changed to:", e.target.value);
+    setSelectedLocation(e.target.value);
+  };
 
   return (
     <>
@@ -29,33 +94,25 @@ function AttendanceTable() {
             padding: 0;
             width: 100%;
             height: 100%;
-            overflow: hidden;
+            /* Removed overflow: hidden to allow scrolling */
           }
           @keyframes fade-in {
-            from {
-              opacity: 0;
-              transform: translateY(10px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
           }
           .page-container {
             min-height: 100vh;
-            height: 100vh;
-            width: 100vw;
+            width: 100%;
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
-            position: absolute;
-            top: 0;
-            left: 0;
-            margin: 0;
-            padding: 3rem 0 0 0; /* Matches navbar height */
+            position: relative; /* Changed from absolute to prevent clipping */
+            padding: 5rem 1rem 2rem 1rem; /* Increased top padding for navbar */
             overflow-y: auto;
-            overflow-x: hidden;
             color: #f1f5f9;
             box-sizing: border-box;
             z-index: 1;
@@ -67,60 +124,132 @@ function AttendanceTable() {
             left: 0;
             width: 100%;
             height: 100%;
-            background: radial-gradient(circle at 10% 20%, rgba(96, 165, 250, 0.1) 0%, transparent 50%);
+            background: radial-gradient(circle at 10% 20%, rgba(96, 165, 250, 0.15) 0%, transparent 50%);
             pointer-events: none;
             z-index: -1;
           }
           .title {
-            font-size: 2.25rem;
-            font-weight: 700;
+            font-size: 2.5rem;
+            font-weight: 800;
             letter-spacing: 0.02em;
             text-transform: uppercase;
-            background: linear-gradient(to right, #f1f5f9, #93c5fd);
+            background: linear-gradient(to right, #f1f5f9, #60a5fa);
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
-            animation: fade-in 0.5s ease-out;
-            padding: 0.5rem;
-            z-index: 20;
+            animation: fade-in 0.6s ease-out;
+            padding: 0.75rem;
             width: 100%;
-            max-width: 1200px;
             text-align: center;
+          }
+          .filter-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+            width: 100%;
+            padding: 0 1rem;
+            margin-bottom: 1.5rem;
+            animation: fade-in 0.6s ease-out;
+          }
+          .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+          }
+          .filter-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            letter-spacing: 0.02em;
+          }
+          .filter-select {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            color: #f1f5f9;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            outline: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            width: 200px;
+          }
+          .filter-select:hover {
+            background: #334155;
+            transform: scale(1.05);
+          }
+          .filter-select:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.3);
+          }
+          .filter-select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          .employee-count {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #e2e8f0;
+            transition: all 0.3s ease;
+          }
+          .employee-count:hover {
+            background: #334155;
+            transform: scale(1.05);
+          }
+          .employee-count span {
+            font-weight: 700;
+            color: #60a5fa;
           }
           .loading {
             text-align: center;
-            font-size: 0.875rem;
+            font-size: 0.9rem;
             color: #cbd5e1;
-            padding: 1.5rem;
+            padding: 2rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.5rem;
+            gap: 0.75rem;
+            animation: fade-in 0.6s ease-out;
           }
           .spinner {
-            width: 1.25rem;
-            height: 1.25rem;
-            border: 2px solid #60a5fa;
-            border-top: 2px solid transparent;
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 3px solid #60a5fa;
+            border-top: 3px solid transparent;
             border-radius: 50%;
             animation: spin 1s linear infinite;
           }
-          @keyframes spin {
-            to { transform: rotate(360deg); }
+          .no-data {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #64748b;
+            padding: 2rem;
+            background: #1e293b;
+            border-radius: 12px;
+            width: 100%;
+            animation: fade-in 0.6s ease-out;
           }
           .table-container {
             width: 100%;
-            max-width: 1200px;
             overflow-x: auto;
             border-radius: 12px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 1px rgba(255, 255, 255, 0.1);
             background: #0f172a;
-            animation: fade-in 0.5s ease-out;
+            animation: fade-in 0.6s ease-out;
+            margin-bottom: 2rem;
           }
           .table {
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
+            table-layout: fixed; /* Ensure columns distribute evenly */
           }
           .table-head {
             background: #1e40af;
@@ -133,10 +262,10 @@ function AttendanceTable() {
             padding: 1rem;
             text-align: left;
             font-weight: 600;
-            font-size: 0.875rem;
+            font-size: 0.9rem;
             letter-spacing: 0.03em;
             border-bottom: 1px solid #334155;
-            white-space: nowrap;
+            width: 14.28%; /* Distribute 7 columns evenly */
           }
           .table-head th:first-child {
             border-top-left-radius: 12px;
@@ -147,7 +276,7 @@ function AttendanceTable() {
           .table-row {
             border-bottom: 1px solid #334155;
             transition: all 0.3s ease;
-            animation: fade-in 0.5s ease-out;
+            animation: fade-in 0.6s ease-out;
           }
           .table-row:nth-child(even) {
             background: #1e293b;
@@ -155,61 +284,100 @@ function AttendanceTable() {
           .table-row:hover {
             background: #334155;
             transform: translateY(-2px);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
           }
           .table-row:last-child {
             border-bottom: none;
           }
           .table-cell {
             padding: 1rem;
-            font-size: 0.875rem;
+            font-size: 0.9rem;
             color: #f1f5f9;
-            white-space: nowrap;
-          }
-          .no-data {
-            text-align: center;
-            font-size: 0.875rem;
-            color: #64748b;
-            padding: 1.5rem;
+            white-space: normal; /* Allow text wrapping */
+            word-break: break-word;
           }
           @media (max-width: 768px) {
             .page-container {
-              padding: 3rem 0 0 0;
+              padding: 4rem 0.5rem 1rem 0.5rem;
             }
             .title {
-              font-size: 1.5rem;
-              padding: 0.25rem;
-              max-width: 100%;
+              font-size: 1.75rem;
+              padding: 0.5rem;
+            }
+            .filter-container {
+              flex-direction: column;
+              align-items: stretch;
+              padding: 0 0.75rem;
+            }
+            .filter-group {
+              flex-direction: column;
+              align-items: flex-start;
+            }
+            .filter-label, .filter-select, .employee-count {
+              font-size: 0.85rem;
+            }
+            .filter-select, .employee-count {
+              width: 100%;
+              box-sizing: border-box;
             }
             .table-container {
               border-radius: 0;
               box-shadow: none;
-              max-width: 100%;
             }
             .table-head th, .table-cell {
-              padding: 0.5rem;
-              font-size: 0.75rem;
+              padding: 0.75rem;
+              font-size: 0.85rem;
+              width: 33.33%; /* 3 columns on mobile */
             }
             .table-head th:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(7)),
             .table-cell:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(7)) {
-              display: none;
+              display: none; /* Hide non-critical columns */
             }
             .loading, .no-data {
-              padding: 1rem;
-              font-size: 0.8125rem;
+              padding: 1.5rem;
+              font-size: 0.85rem;
             }
           }
         `}
       </style>
       <div className="page-container">
         <h2 className="title">Attendance Records</h2>
+        <div className="filter-container">
+          <div className="filter-group">
+            <label htmlFor="location-filter" className="filter-label">
+              Filter by Location:
+            </label>
+            <select
+              id="location-filter"
+              value={selectedLocation}
+              onChange={handleLocationChange}
+              className="filter-select"
+              disabled={loading}
+            >
+              <option value="all">All Locations</option>
+              {locations.map((location) => (
+                <option key={location} value={location}>
+                  {location}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="employee-count">
+            Employees at{" "}
+            {selectedLocation === "all" ? "All Locations" : selectedLocation}:{" "}
+            <span>{employeeCount}</span>
+          </div>
+        </div>
         {loading ? (
           <div className="loading">
             <div className="spinner"></div>
-            Loading...
+            Loading attendance records...
           </div>
-        ) : attendance.length === 0 ? (
-          <p className="no-data">No attendance records found.</p>
+        ) : filteredAttendance.length === 0 ? (
+          <p className="no-data">
+            No attendance records found for{" "}
+            {selectedLocation === "all" ? "any location" : selectedLocation}.
+          </p>
         ) : (
           <div className="table-container">
             <table className="table">
@@ -225,14 +393,18 @@ function AttendanceTable() {
                 </tr>
               </thead>
               <tbody>
-                {attendance.map((record) => (
+                {filteredAttendance.map((record) => (
                   <tr key={record.id} className="table-row">
-                    <td className="table-cell">{record.employee.name}</td>
                     <td className="table-cell">
-                      {record.employee.department || "N/A"}
+                      {record.employee?.name || "Unknown"}
                     </td>
                     <td className="table-cell">
-                      {new Date(record.checkIn).toLocaleString()}
+                      {record.employee?.department || "N/A"}
+                    </td>
+                    <td className="table-cell">
+                      {record.checkIn
+                        ? new Date(record.checkIn).toLocaleString()
+                        : "-"}
                     </td>
                     <td className="table-cell">
                       {record.checkOut
