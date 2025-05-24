@@ -10,7 +10,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: "https://empatt.vercel.app",
+    origin: "*",
     credentials: true,
   })
 );
