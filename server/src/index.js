@@ -8,7 +8,12 @@ const authRoutes = require("./routes/authRoutes");
 dotenv.config();
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://empatt.vercel.app",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Add root route
