@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://newemp-1.onrender.com",
+  baseURL: "http://localhost:5000",
 });
 
 api.interceptors.request.use((config) => {
@@ -43,5 +43,10 @@ export const exportSummary = (month, year) =>
   api.get(`/api/attendance/export?month=${month}&year=${year}`, {
     responseType: "blob",
   });
+export const recordServerRoomAction = (data) =>
+  api.post("/api/server-room-actions", data);
+export const getServerRoomActions = () => api.get("/api/server-room-actions");
+export const exportServerRoomActions = () =>
+  api.get("/api/server-room-actions/export", { responseType: "blob" });
 
 export default api;

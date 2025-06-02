@@ -5,6 +5,7 @@ import AttendanceTable from "./AttendanceTable";
 import MonthlySummary from "./MonthlySummary";
 import EmployeeAttendance from "./EmployeeAttendance";
 import DashboardHome from "./DashboardHome";
+import ServerRoomActions from "./ServerRoomActions";
 
 function Dashboard() {
   return (
@@ -17,6 +18,7 @@ function Dashboard() {
           <Route path="/attendance" element={<AttendanceTable />} />
           <Route path="/summary" element={<MonthlySummary />} />
           <Route path="/employee-attendance" element={<EmployeeAttendance />} />
+          <Route path="/server-room-actions" element={<ServerRoomActions />} />
         </Routes>
       </div>
     </div>
