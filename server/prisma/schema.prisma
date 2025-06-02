@@ -8,13 +8,14 @@ generator client {
 }
 
 model Employee {
-  id           Int          @id @default(autoincrement())
-  name         String
-  punchCardId  String       @unique
-  department   String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  attendances  Attendance[]
+  id              Int               @id @default(autoincrement())
+  name            String
+  punchCardId     String            @unique
+  department      String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  attendances     Attendance[]
+  serverRoomActions ServerRoomAction[]
 }
 
 model Attendance {
@@ -34,4 +35,13 @@ model Admin {
   username  String   @unique
   password  String
   createdAt DateTime @default(now())
+}
+
+model ServerRoomAction {
+  id          Int      @id @default(autoincrement())
+  employeeId  Int
+  component   String
+  action      String
+  createdAt   DateTime @default(now())
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
