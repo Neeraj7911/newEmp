@@ -26,6 +26,8 @@ model Attendance {
   duration         Int?      // Duration in minutes
   checkInLocation  String?   // Location for check-in
   checkOutLocation String?   // Location for check-out
+  violationCount   Int       @default(0)
+  isEmergency      Boolean   @default(false)
   employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   createdAt        DateTime  @default(now())
 }

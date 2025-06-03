@@ -3,11 +3,17 @@ const { Parser } = require("json2csv");
 const prisma = new PrismaClient();
 
 const recordAttendance = async (req, res) => {
-  const { punchCardId, location } = req.body;
-  if (!punchCardId || !location) {
+  const {
+    punchCardId,
+    action,
+    location = "Unknown",
+    isForced = false,
+  } = req.body;
+
+  if (!punchCardId || !action) {
     return res
       .status(400)
-      .json({ error: "Punch card ID and location are required" });
+      .json({ error: "punchCardId and action are required" });
   }
 
   try {
@@ -15,47 +21,109 @@ const recordAttendance = async (req, res) => {
       where: { punchCardId },
     });
     if (!employee) {
-      return res.status(400).json({ error: "Invalid punch card ID" });
+      return res.status(400).json({ error: "Invalid punchCardId" });
     }
 
     const lastAttendance = await prisma.attendance.findFirst({
-      where: { employeeId: employee.id },
+      where: { employeeId: employee.id, checkOut: null },
       orderBy: { checkIn: "desc" },
     });
 
-    if (!lastAttendance || lastAttendance.checkOut) {
-      // New check-in
+    const violationCount = await prisma.attendance.count({
+      where: { employeeId: employee.id, violationCount: { gt: 0 } },
+    });
+
+    if (action === "check-in" || action === "emergency-check-in") {
+      if (lastAttendance) {
+        return res.status(400).json({ error: "Employee already checked in" });
+      }
+
+      if (action === "check-in" && violationCount >= 3) {
+        return res
+          .status(403)
+          .json({ error: "Check-in restricted due to violations" });
+      }
+
       const attendance = await prisma.attendance.create({
         data: {
           employeeId: employee.id,
           checkIn: new Date(),
           checkInLocation: location,
+          isEmergency: action === "emergency-check-in",
+          violationCount: isForced ? violationCount + 1 : violationCount,
           createdAt: new Date(),
         },
       });
-      res.json({ message: "Check-in recorded", attendance });
-    } else {
-      // Check-out
+
+      if (action === "emergency-check-in") {
+        setTimeout(async () => {
+          const record = await prisma.attendance.findFirst({
+            where: { id: attendance.id, checkOut: null },
+          });
+          if (record) {
+            const checkOut = new Date();
+            const duration = Math.round(
+              (checkOut - new Date(record.checkIn)) / (1000 * 60)
+            );
+            await prisma.attendance.update({
+              where: { id: attendance.id },
+              data: {
+                checkOut,
+                checkOutLocation: location,
+                duration,
+              },
+            });
+            console.log(`Auto-checked out ${punchCardId} after 5 minutes`);
+          }
+        }, 5 * 60 * 1000);
+      }
+
+      return res.json({
+        message:
+          action === "check-in"
+            ? "Check-in recorded"
+            : "Temporary entry recorded",
+        attendance,
+      });
+    }
+
+    if (action === "check-out") {
+      if (!lastAttendance) {
+        return res.status(400).json({ error: "No active check-in found" });
+      }
+
       const checkOut = new Date();
       const duration = Math.round(
-        (checkOut - lastAttendance.checkIn) / 1000 / 60
-      ); // Duration in minutes
+        (checkOut - new Date(lastAttendance.checkIn)) / (1000 * 60)
+      );
+      const updatedViolationCount = isForced
+        ? lastAttendance.violationCount + 1
+        : lastAttendance.violationCount;
+
       const attendance = await prisma.attendance.update({
         where: { id: lastAttendance.id },
-        data: { checkOut, duration, checkOutLocation: location },
+        data: {
+          checkOut,
+          checkOutLocation: location,
+          duration,
+          violationCount: updatedViolationCount,
+        },
       });
-      res.json({ message: "Check-out recorded", attendance });
+
+      return res.json({ message: "Check-out recorded", attendance });
     }
+
+    return res.status(400).json({ error: "Invalid action" });
   } catch (error) {
     console.error("Record Attendance Error:", error);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
 const getLastAttendance = async (req, res) => {
   const { punchCardId } = req.query;
   if (!punchCardId) {
-    return res.status(400).json({ error: "Punch card ID is required" });
+    return res.status(400).json({ error: "punchCardId is required" });
   }
 
   try {
@@ -63,19 +131,23 @@ const getLastAttendance = async (req, res) => {
       where: { punchCardId },
     });
     if (!employee) {
-      return res.status(400).json({ error: "Invalid punch card ID" });
+      return res.status(400).json({ error: "Invalid punchCardId" });
     }
 
     const lastAttendance = await prisma.attendance.findFirst({
       where: { employeeId: employee.id },
       orderBy: { checkIn: "desc" },
-      include: { employee: { select: { name: true, department: true } } },
+      include: {
+        employee: {
+          select: { id: true, name: true, department: true, punchCardId: true },
+        },
+      },
     });
 
     res.json(lastAttendance || null);
   } catch (error) {
     console.error("Get Last Attendance Error:", error);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -91,21 +163,23 @@ const getAttendance = async (req, res) => {
     const attendances = await prisma.attendance.findMany({
       where,
       include: {
-        employee: { select: { id: true, name: true, department: true } },
+        employee: {
+          select: { id: true, name: true, department: true, punchCardId: true },
+        },
       },
       orderBy: { checkIn: "desc" },
     });
     res.json(attendances);
   } catch (error) {
     console.error("Get Attendance Error:", error);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
 const getEmployeeAttendance = async (req, res) => {
   const { punchCardId, startDate, endDate } = req.query;
   if (!punchCardId) {
-    return res.status(400).json({ error: "Punch card ID is required" });
+    return res.status(400).json({ error: "punchCardId is required" });
   }
 
   try {
@@ -113,15 +187,14 @@ const getEmployeeAttendance = async (req, res) => {
       where: { punchCardId },
     });
     if (!employee) {
-      return res.status(400).json({ error: "Invalid punch card ID" });
+      return res.status(400).json({ error: "Invalid punchCardId" });
     }
 
     const where = { employeeId: employee.id };
     if (startDate && endDate) {
-      // Ensure dates are in ISO format (YYYY-MM-DD)
       const start = new Date(startDate);
       const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999); // Include entire end date
+      end.setHours(23, 59, 59, 999);
       where.checkIn = { gte: start, lte: end };
       console.log("Query Filter:", {
         punchCardId,
@@ -132,7 +205,11 @@ const getEmployeeAttendance = async (req, res) => {
 
     const attendances = await prisma.attendance.findMany({
       where,
-      include: { employee: { select: { name: true, department: true } } },
+      include: {
+        employee: {
+          select: { id: true, name: true, department: true, punchCardId: true },
+        },
+      },
       orderBy: { checkIn: "desc" },
     });
 
@@ -140,7 +217,7 @@ const getEmployeeAttendance = async (req, res) => {
     res.json(attendances);
   } catch (error) {
     console.error("Get Employee Attendance Error:", error);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -159,7 +236,9 @@ const getMonthlySummary = async (req, res) => {
         checkIn: { gte: startDate, lte: endDate },
       },
       include: {
-        employee: { select: { id: true, name: true, department: true } },
+        employee: {
+          select: { id: true, name: true, department: true, punchCardId: true },
+        },
       },
     });
 
@@ -181,7 +260,7 @@ const getMonthlySummary = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Get Monthly Summary Error:", error);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -200,7 +279,9 @@ const exportMonthlySummary = async (req, res) => {
         checkIn: { gte: startDate, lte: endDate },
       },
       include: {
-        employee: { select: { id: true, name: true, department: true } },
+        employee: {
+          select: { id: true, name: true, department: true, punchCardId: true },
+        },
       },
     });
 
@@ -234,7 +315,33 @@ const exportMonthlySummary = async (req, res) => {
     res.send(csv);
   } catch (error) {
     console.error("Export Monthly Summary Error:", error);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+const resetViolations = async (req, res) => {
+  const { punchCardId } = req.body;
+  if (!punchCardId) {
+    return res.status(400).json({ error: "punchCardId is required" });
+  }
+
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { punchCardId },
+    });
+    if (!employee) {
+      return res.status(400).json({ error: "Invalid punchCardId" });
+    }
+
+    await prisma.attendance.updateMany({
+      where: { employeeId: employee.id, violationCount: { gt: 0 } },
+      data: { violationCount: 0 },
+    });
+
+    res.json({ message: "Violations reset successfully" });
+  } catch (error) {
+    console.error("Reset Violations Error:", error);
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -245,4 +352,5 @@ module.exports = {
   getEmployeeAttendance,
   getMonthlySummary,
   exportMonthlySummary,
+  resetViolations,
 };

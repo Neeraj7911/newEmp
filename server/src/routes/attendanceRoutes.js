@@ -7,6 +7,7 @@ const {
   getEmployeeAttendance,
   getMonthlySummary,
   exportMonthlySummary,
+  resetViolations,
 } = require("../controllers/attendanceController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -16,5 +17,6 @@ router.get("/", authMiddleware, getAttendance);
 router.get("/employee", authMiddleware, getEmployeeAttendance); // Admin-only
 router.get("/summary", authMiddleware, getMonthlySummary);
 router.get("/export", authMiddleware, exportMonthlySummary);
+router.post("/reset-violations", authMiddleware, resetViolations); // Admin-only
 
 module.exports = router;

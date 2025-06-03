@@ -48,5 +48,35 @@ export const recordServerRoomAction = (data) =>
 export const getServerRoomActions = () => api.get("/api/server-room-actions");
 export const exportServerRoomActions = () =>
   api.get("/api/server-room-actions/export", { responseType: "blob" });
+export const forceCheckOut = (punchCardId, location = "Admin Forced") => {
+  if (!punchCardId) {
+    console.error("forceCheckOut: Missing punchCardId");
+    return Promise.reject(new Error("Missing punchCardId"));
+  }
+  return api.post("/api/attendance/record", {
+    punchCardId,
+    action: "check-out",
+    location,
+    isForced: true,
+  });
+};
+export const emergencyCheckIn = (punchCardId, location = "Emergency Entry") => {
+  if (!punchCardId) {
+    console.error("emergencyCheckIn: Missing punchCardId");
+    return Promise.reject(new Error("Missing punchCardId"));
+  }
+  return api.post("/api/attendance/record", {
+    punchCardId,
+    action: "emergency-check-in",
+    location,
+  });
+};
+export const resetViolations = (punchCardId) => {
+  if (!punchCardId) {
+    console.error("resetViolations: Missing punchCardId");
+    return Promise.reject(new Error("Missing punchCardId"));
+  }
+  return api.post("/api/attendance/reset-violations", { punchCardId });
+};
 
 export default api;

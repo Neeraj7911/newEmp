@@ -25,6 +25,7 @@ function PunchCardEntry() {
           const response = await getLastAttendance(punchCardId.trim());
           setStatus(response.data);
         } catch (error) {
+          console.error("Fetch Status Error:", error);
           setStatus(null);
         }
       };
@@ -47,14 +48,21 @@ function PunchCardEntry() {
     }
     setLoading(true);
     try {
+      const action = !status || status.checkOut ? "check-in" : "check-out";
+      console.log("Sending request:", {
+        punchCardId: trimmedPunchCardId,
+        action,
+        location,
+      });
       const response = await recordAttendance({
         punchCardId: trimmedPunchCardId,
+        action,
         location,
       });
       toast.success(response.data.message);
       setStatus(response.data.attendance);
-      if (location === "Server Room" && (!status || status.checkOut)) {
-        localStorage.setItem("punchCardId", trimmedPunchCardId); // Store in localStorage
+      if (location === "Server Room" && action === "check-in") {
+        localStorage.setItem("punchCardId", trimmedPunchCardId);
         console.log("Stored punchCardId in localStorage:", trimmedPunchCardId);
         navigate("/server-room-actions", {
           state: { punchCardId: trimmedPunchCardId },
@@ -63,7 +71,14 @@ function PunchCardEntry() {
       setPunchCardId("");
       setLocation("");
     } catch (error) {
-      toast.error(error.response?.data?.error || "Failed to record attendance");
+      const errorMsg =
+        error.response?.data?.error || "Failed to record attendance";
+      console.error("Record Attendance Error:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      toast.error(errorMsg);
     }
     setLoading(false);
   };

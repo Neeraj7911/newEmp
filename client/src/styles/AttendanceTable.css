@@ -266,3 +266,36 @@ html {
     font-size: 0.85rem;
   }
 }
+.table-row.overdue {
+  background-color: #ff4d4d;
+  color: #fff;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.force-checkout-button,
+.emergency-checkin-button,
+.reset-violations-button {
+  background-color: #ff9800;
+  color: #fff;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.force-checkout-button:hover,
+.emergency-checkin-button:hover,
+.reset-violations-button:hover {
+  background-color: #e68900;
+}
+
+.force-checkout-button:disabled,
+.emergency-checkin-button:disabled,
+.reset-violations-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
